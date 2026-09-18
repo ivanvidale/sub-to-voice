@@ -2,10 +2,12 @@
 
 // ---- Config (da tarare guardando il gioco reale) ----
 const SAMPLE_INTERVAL_MS = 800;   // ogni quanto controllare la zona sottotitoli
-const STABLE_COUNT = 2;           // letture OCR uguali consecutive richieste prima di considerare la riga "stabile"
-const MAX_CROP_WIDTH = 480;       // limite risoluzione ritaglio, per velocità OCR
-const CHANGE_THRESHOLD = 14;      // sensibilità del pre-filtro "è cambiato qualcosa?" (0-255)
-const DEFAULT_RECT = { x: 0.12, y: 0.70, w: 0.76, h: 0.24 }; // zona sottotitoli di default (frazioni video)
+const STABLE_COUNT = 2;           // letture OCR simili consecutive richieste prima di considerare la riga "stabile"
+const SIMILARITY_THRESHOLD = 0.82; // quanto due letture OCR devono assomigliarsi per contare come "stessa riga" (0-1)
+const MAX_CROP_WIDTH = 900;       // risoluzione ritaglio per l'OCR (più alta = testo più leggibile, ma più lenta)
+const CHANGE_THRESHOLD = 18;      // sensibilità del pre-filtro "è cambiato qualcosa?" (0-255)
+const BINARIZE_THRESHOLD = 170;   // soglia bianco/nero per isolare il testo dei sottotitoli dallo sfondo
+const DEFAULT_RECT = { x: 0.10, y: 0.66, w: 0.80, h: 0.30 }; // zona sottotitoli di default (frazioni video)
 
 // ---- Elementi ----
 const video = document.getElementById('video');
@@ -190,10 +192,14 @@ async function tick() {
   if (!vw || !vh) return;
 
   const sx = rect.x * vw, sy = rect.y * vh, sw = rect.w * vw, sh = rect.h * vh;
-  const scale = Math.min(1, MAX_CROP_WIDTH / sw);
+  const MIN_CROP_WIDTH = 600;
+  let scale = 1;
+  if (sw > MAX_CROP_WIDTH) scale = MAX_CROP_WIDTH / sw;
+  else if (sw < MIN_CROP_WIDTH) scale = MIN_CROP_WIDTH / sw;
   ocrCanvas.width = Math.round(sw * scale);
   ocrCanvas.height = Math.round(sh * scale);
   ocrCtx.drawImage(video, sx, sy, sw, sh, 0, 0, ocrCanvas.width, ocrCanvas.height);
+  binarize(ocrCanvas); // isola il testo (bianco) dallo sfondo (nero) per aiutare l'OCR
 
   const grid = computeGrid(ocrCanvas);
   if (lastStableGrid && gridDiff(grid, lastStableGrid) < CHANGE_THRESHOLD) {
@@ -205,8 +211,9 @@ async function tick() {
     const { data } = await ocrWorker.recognize(ocrCanvas);
     const text = normalizeText(data.text);
 
-    if (text === pendingText) {
+    if (text && pendingText && similarity(text, pendingText) >= SIMILARITY_THRESHOLD) {
       pendingCount++;
+      if (text.length > pendingText.length) pendingText = text; // tiene la lettura più completa
     } else {
       pendingText = text;
       pendingCount = 1;
@@ -214,9 +221,9 @@ async function tick() {
 
     if (pendingCount >= STABLE_COUNT) {
       lastStableGrid = grid;
-      if (text && text !== lastSpokenText) {
-        lastSpokenText = text;
-        handleNewLine(text);
+      if (pendingText && pendingText !== lastSpokenText) {
+        lastSpokenText = pendingText;
+        handleNewLine(pendingText);
       }
     }
   } catch (e) {
@@ -244,6 +251,45 @@ function gridDiff(a, b) {
   let sum = 0;
   for (let i = 0; i < a.length; i++) sum += Math.abs(a[i] - b[i]);
   return sum / a.length;
+}
+
+// Converte il ritaglio in bianco/nero puro: isola il testo (chiaro) dallo sfondo,
+// molto più leggibile per l'OCR di uno sfondo di gioco vario.
+function binarize(canvas) {
+  const ctx = canvas.getContext('2d');
+  const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const d = imgData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const gray = d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
+    const v = gray > BINARIZE_THRESHOLD ? 255 : 0;
+    d[i] = d[i + 1] = d[i + 2] = v;
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+
+// Quanto si assomigliano due letture OCR (0 = niente in comune, 1 = identiche).
+// Serve a non scartare una riga solo perché due letture successive differiscono
+// per qualche carattere rumoroso (bordi tagliati, lieve tremolio della fotocamera, ecc.).
+function similarity(a, b) {
+  const maxLen = Math.max(a.length, b.length);
+  if (maxLen === 0) return 1;
+  return 1 - levenshtein(a, b) / maxLen;
+}
+
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  const dp = new Array(n + 1);
+  for (let j = 0; j <= n; j++) dp[j] = j;
+  for (let i = 1; i <= m; i++) {
+    let prev = dp[0];
+    dp[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const tmp = dp[j];
+      dp[j] = a[i - 1] === b[j - 1] ? prev : 1 + Math.min(prev, dp[j], dp[j - 1]);
+      prev = tmp;
+    }
+  }
+  return dp[n];
 }
 
 // ---- Traduzione + lettura vocale ----
