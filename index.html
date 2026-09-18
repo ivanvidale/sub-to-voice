@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sub to Voice</title>
+<style>
+  :root {
+    color-scheme: dark;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #0b0d12;
+    color: #e8eaf0;
+    font-family: -apple-system, system-ui, sans-serif;
+    padding: 16px;
+  }
+  h1 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0 0 4px;
+  }
+  p.sub {
+    margin: 0 0 16px;
+    color: #9aa1b2;
+    font-size: 0.85rem;
+  }
+  .video-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto 12px;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  video {
+    width: 100%;
+    display: block;
+  }
+  #cropBox {
+    position: absolute;
+    border: 2px solid #4fd1c5;
+    background: rgba(79, 209, 197, 0.12);
+    touch-action: none;
+  }
+  .handle {
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    background: #4fd1c5;
+    border-radius: 50%;
+    right: -11px;
+    bottom: -11px;
+    touch-action: none;
+  }
+  .row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  button {
+    flex: 1;
+    min-width: 120px;
+    padding: 14px;
+    font-size: 1rem;
+    border: none;
+    border-radius: 10px;
+    background: #4fd1c5;
+    color: #06110f;
+    font-weight: 600;
+  }
+  button.secondary {
+    background: #262b38;
+    color: #e8eaf0;
+  }
+  button:disabled {
+    opacity: 0.5;
+  }
+  #status {
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #161a24;
+    font-size: 0.85rem;
+    margin-bottom: 16px;
+    min-height: 1.2em;
+  }
+  #history {
+    border-top: 1px solid #262b38;
+    padding-top: 10px;
+  }
+  #history h2 {
+    font-size: 0.9rem;
+    color: #9aa1b2;
+    margin: 0 0 8px;
+  }
+  .entry {
+    padding: 8px 0;
+    border-bottom: 1px solid #1a1e28;
+  }
+  .entry .en {
+    font-size: 0.75rem;
+    color: #6b7280;
+  }
+  .entry .it {
+    font-size: 0.95rem;
+  }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+  <h1>Sub to Voice</h1>
+  <p class="sub">Inquadra la zona sottotitoli della TV, poi premi Avvia. Legge in automatico in italiano.</p>
+
+  <div class="video-wrap">
+    <video id="video" autoplay playsinline muted></video>
+    <div id="cropBox"><div class="handle" id="handle"></div></div>
+  </div>
+
+  <div class="row">
+    <button id="btnCamera">1. Accendi fotocamera</button>
+  </div>
+  <div class="row">
+    <button id="btnStart" disabled>2. Avvia lettura</button>
+    <button id="btnStop" class="secondary" hidden>Ferma</button>
+  </div>
+
+  <div id="status">In attesa...</div>
+
+  <div id="history">
+    <h2>Storico ultime righe</h2>
+    <div id="historyList"></div>
+  </div>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
